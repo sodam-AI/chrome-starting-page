@@ -2,103 +2,89 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+---
 
-## [Unreleased]
+## [v1.0.2] - 2025-02-25
 
-## [1.0.0] - 2026-02-23
+### 🔧 Improved — Icon Loading
 
-Major upgrade from the original [chrome-starting-page](https://github.com/sodam-AI/chrome-starting-page) project.
+- Unified icon loading into a single `resolveIcon()` function across all 4 surfaces (bookmarks, preview, spotlight, smart-paste)
+- 4-stage fallback chain: Google → DuckDuckGo → icon.horse → direct `favicon.ico` → glass placeholder
+- Per-domain in-memory cache eliminates duplicate network requests
 
-### Added
+### 🔧 Improved — Dead Link Detection
 
-#### Search & Navigation
-- Spotlight search (`Ctrl+F`) — unified search across bookmarks, todos, notes, and D-Days
-- Korean initial consonant search (초성 검색: `ㅈㅁ` → "지메일")
-- Keyword shortcuts for quick search (`yt`, `nv`, `gh`, `g`, `tw`, `map`)
-- Command palette via `>` prefix in Spotlight (`todo`, `timer`, `edit`, `focus`)
-- Full keyboard shortcut system (`/`, `S`, `E`, `T`, `Ctrl+K`, `Ctrl+F`, `1-9`)
+- Failure counters now persist across page reloads (previously reset on refresh)
+- Detection threshold raised from 2 → 3 consecutive failures to reduce false positives
+- Dead links are prioritized for re-checking (previously 15 random bookmarks)
+- Request timeout increased from 8 s → 12 s to allow for slow sites
+- Orphan entries for deleted bookmarks are auto-cleaned on startup
+- Added "🔗 Reset Dead Links" button in Settings → Data
 
-#### Cards & Widgets
-- **Habit card** — daily habit checklist tracker
-- **Calendar card** — monthly/weekly views with event management
-- **Multi-page system** — organize cards into separate pages with tab navigation
-- Card collapse/expand with persistent state across sessions
-- Card resizing (1x / 2x toggle in edit mode)
-- Per-card custom background color
-- Card drag-and-drop reordering via handle
-- Add/remove cards with undo support
+### 🔧 Improved — Usage Statistics
 
-#### Bookmark Management
-- Drag & drop URL from browser address bar to add bookmarks
-- Drag & drop bookmarks between cards to move categories
-- Drag & drop reordering within cards
-- Duplicate URL detection and cleanup tool
-- NEW badge on recently added bookmarks (auto-removes after 7 days)
-- Undo support for bookmark deletion
+- Storage key migrated from `"Category::Name"` string to URL-based key
+- 4-stage matching (exact / hostname / URL-contains / partial) auto-migrates existing data
+- Hourly usage tracking (`hourly`) for time-based sorting
+- Click history retained (last 500 entries)
+- Local USAGE map updated immediately on click (no wait for server round-trip)
 
-#### Themes & Customization
-- Dark / Light / Auto theme modes
-- 8 accent color options
-- Glass effect presets (Transparent / Default / Opaque) with adjustable transparency and blur
-- Background options: solid color, image upload, slideshow
-- Per-card color customization
+### ⚡ Improved — Boot Performance
 
-#### Data & Backup
-- Automatic backup with smart retention policy (7-day full → 30-day daily → auto-delete)
-- Maximum 50 backup files with automatic cleanup
-- Export to JSON, Markdown, and HTML report formats
-- Drag & drop JSON import
-- Trash / recycle bin for deleted items
-- Profile management for multiple configurations
-- Pomodoro timer statistics tracking
-
-#### Infrastructure
-- Service Worker caching for offline access (viewable even when server is down)
-- 3-tier favicon fallback: Google → DuckDuckGo → auto-generated colored letter icons
-- `restart.bat` for one-click server restart (Windows)
-- Linux support with systemd service configuration
-- New Tab Redirect extension guidance for new tab integration
-- Save failure indicator (bottom-right "⚠ 저장 실패" warning)
-
-#### Documentation
-- Comprehensive troubleshooting guide (port conflict, server issues, display issues, data saving, icons)
-- Complete uninstall guide for all platforms (Windows, macOS, Linux)
-- Detailed project structure documentation
-- Technical specifications section
-
-### Changed
-- **Todo system**: Removed 5-item-per-day limit → unlimited with priority levels, tags, due dates, and recurring tasks
-- **Calendar**: Basic monthly view → full monthly/weekly calendar with event management
-- **Search**: Simple engine switching → advanced multi-engine with keyword shortcuts and Spotlight
-- **Settings**: Basic background URL input → comprehensive settings panel with theme, glass, background, weather, search, D-Day, and data management sections
-- **Notepad**: Fixed 2 notepads → unlimited notepad cards, freely creatable
-- **Favicon**: Google Favicon API only → 3-tier fallback system for reliability
-- **Documentation**: 78 lines → 418 lines (5× more comprehensive)
-- **Weather**: Not mentioned in original → weather widget with city name input
-- **D-Day**: Not available → D-Day counter for important dates
-
-### Improved
-- Zero external npm dependencies — pure Node.js built-in modules only
-- Vanilla JS + CSS with no framework overhead
-- Low memory footprint (~15MB when idle)
-- No system registry modifications, no global config files
-- Server auto-start registration for Windows (Startup folder) and macOS (LaunchAgent)
+- 3-phase boot sequence: Phase 1 (instant render) → Phase 2 (post-first-paint init) → Phase 3 (background checks after 30 s)
+- First backup deferred 60 s to reduce API latency on startup
 
 ---
 
-## [Original] - Pre-fork
+## [v1.0.1] - 2025-02-23
 
-Original project by [sodam-AI](https://github.com/sodam-AI/chrome-starting-page)
+### ✨ Added
 
-### Features
-- Glassmorphism UI design
-- Multi-timezone global clocks
-- Monthly calendar with basic todo (max 5 per day)
-- Google / Naver / YouTube search switching
-- 2 notepad widgets
-- Background image via URL
-- macOS / Windows auto-start setup
-- Local server on port 1111
-- Data protection via .gitignore
+- Emoji picker for page tab names
+- NEW badge for bookmarks added within the last 7 days
+- Search engine tooltip on hover
+- Bookmark card height equalization
+- Multi-note cards (create as many as needed, configurable row count)
+- Widget card show/hide toggle
+- Calendar card & Habit tracker
+- Pomodoro timer
+- Profile management
+- Drag-URL bookmark creation
+- Multi-select (Ctrl/Shift click)
+- Inline rename on double-click
+- Focus mode (hides non-bookmark widgets)
+- Layout presets (default / compact / wide)
+- Smart paste (auto-shows category picker on URL paste)
+- Event notifications (browser alert at event start)
+- Scroll position restore
+- Onboarding guide on first launch
+
+### 🔧 Improved — Server
+
+- Gzip compression + ETag caching + in-memory static file cache
+- Smart backup retention policy (all for 7 d / 1 per day for 8–30 d / delete after 30 d / 50-entry cap)
+- Background execution (PowerShell hidden window — no console)
+- MCP-safe restart: kills only port 1111, leaves other Node processes untouched
+- 2-stage icon fallback (Google → DuckDuckGo → glass)
+
+### 🐛 Fixed
+
+- Removed VBS popup on startup
+- CSS alignment issues
+- Recommendation logic corrections
+
+---
+
+## [v1.0.0] - Initial Release
+
+### ✨ Core Features
+
+- Node.js local server (pure built-in modules, no `npm install` required)
+- Category-based bookmark cards
+- Dark / Light / Auto theme
+- Glass-morphism UI
+- Multi-search-engine switcher
+- D-Day countdown widget
+- Todo management (priority, tags, due dates, recurrence)
+- Keyboard shortcuts
+- Offline support via Service Worker
