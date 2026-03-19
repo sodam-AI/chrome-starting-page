@@ -1,61 +1,496 @@
 <!DOCTYPE html>
-<html lang="ko">
-
+<html lang="ko" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JH Kim's Office</title>
+    <title>Dashboard</title>
+    <meta name="description" content="A beautiful, private Chrome start page dashboard with bookmarks, notes, todos, calendar, and more. Runs locally on your computer.">
+    <meta name="author" content="Sodam AI Studio">
+    <meta name="robots" content="noindex, nofollow">
+    <!-- Open Graph -->
+    <meta property="og:title" content="Chrome Starting Page Dashboard">
+    <meta property="og:description" content="Beautiful, private personal homepage — bookmarks, notes, todos, calendar. 100% local, zero dependencies.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="assets/icon-512.svg">
+    <link rel="icon" type="image/svg+xml" href="assets/icon-192.svg">
+    <link rel="apple-touch-icon" href="assets/icon-192.svg">
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#0c0e12">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Pretendard+Variable:wght@100..900&family=Outfit:wght@100..900&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
-
 <body>
     <div class="background-container">
-        <img src="assets/background.png" alt="Background" id="bg-image">
-        <div class="overlay"></div>
+        <img src="assets/background.png" alt="" id="bg-image">
+        <div class="overlay" id="bg-overlay"></div>
+        <div class="time-overlay" id="time-overlay"></div>
     </div>
 
-    <main id="dashboard">
-        <!-- Hero Section: Clocks & Search -->
-        <div class="hero-container">
-            <div class="clock-container">
-                <div class="clock-item">
-                    <span class="clock-label">SEOUL</span>
-                    <span class="clock-time" id="time-kr">--:--</span>
-                </div>
-                <div class="clock-item">
-                    <span class="clock-label">DETROIT</span>
-                    <span class="clock-time" id="time-us">--:--</span>
-                </div>
-                <div class="clock-item">
-                    <span class="clock-label">BERLIN</span>
-                    <span class="clock-time" id="time-de">--:--</span>
-                </div>
-                <div class="clock-item">
-                    <span class="clock-label">CHENNAI</span>
-                    <span class="clock-time" id="time-in">--:--</span>
-                </div>
-            </div>
+    <div class="server-status" id="server-status" title="서버 연결됨"><span class="status-dot"></span></div>
+    <div class="save-indicator" id="save-indicator"></div>
+    <div class="offline-banner" id="offline-banner">오프라인 모드 — 변경사항은 연결 시 자동 저장됩니다</div>
 
-            <div class="search-container">
-                <button id="search-toggle" class="search-btn" title="Switch Engine">
-                    <img src="https://www.google.com/favicon.ico" id="search-icon" alt="Engine">
-                </button>
-                <input type="text" id="search-input" placeholder="Search Google..." autocomplete="off">
+
+    <!-- Undo 토스트 -->
+    <div class="undo-toast" id="undo-toast"><span id="undo-msg"></span><button class="undo-btn" id="undo-btn">되돌리기</button><div class="undo-timer-bar" id="undo-timer-bar"></div></div>
+
+    <!-- 단축키 토스트 -->
+    <div class="shortcut-toast" id="shortcut-toast"></div>
+
+    <!-- Spotlight -->
+    <div class="spotlight-overlay" id="spotlight-overlay">
+        <div class="spotlight-box">
+            <div class="spotlight-icon">🔍</div>
+            <input type="text" id="spotlight-input" placeholder="북마크, 할 일, 메모 검색... (>명령)" autocomplete="off" aria-label="통합 검색">
+        </div>
+        <div class="spotlight-results" id="spotlight-results"></div>
+    </div>
+
+    <main id="dashboard" role="main" aria-label="대시보드">
+        <div class="hero-container">
+            <div class="weather-widget" id="weather-widget" style="display:none">
+                <span class="weather-icon" id="weather-icon">☀</span>
+                <span class="weather-temp" id="weather-temp">--°</span>
+                <span class="weather-city" id="weather-city"></span>
             </div>
+            <div class="clock-container" id="clock-container"></div>
+            <div class="dday-bar" id="dday-bar"></div>
+            <div class="search-row">
+                <div class="search-container">
+                    <button id="search-toggle" class="search-btn" title="검색엔진 변경" aria-label="검색엔진 변경">
+                        <img src="https://www.google.com/favicon.ico" id="search-icon" alt="검색엔진 아이콘">
+                    </button>
+                    <input type="text" id="search-input" placeholder="Google 검색..." autocomplete="off" aria-label="웹 검색">
+                </div>
+                <div class="profile-selector"><select id="profile-select" title="프로필" aria-label="프로필 선택"></select></div>
+                <button class="icon-btn" id="btn-theme" title="테마 전환" aria-label="다크/라이트 테마 전환">
+                    <svg id="icon-theme-dark" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+                    <svg id="icon-theme-light" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                </button>
+                <button class="icon-btn" id="btn-settings" title="설정 (S)" aria-label="설정 열기"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></button>
+                <button class="icon-btn" id="btn-edit-mode" title="편집 모드 (E)" aria-label="편집 모드 전환"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            </div>
+            <!-- 페이지 탭 -->
+            <div class="page-tabs" id="page-tabs"></div>
         </div>
 
-        <!-- Masonry Grid Container -->
         <div id="masonry-grid" class="folders-grid">
-            <!-- Columns injected by JS -->
+            <div class="grid-section-top" id="grid-top">
+                <div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div>
+            </div>
+            <div class="grid-section-bottom" id="grid-bottom">
+                <div class="skeleton-card tall"></div><div class="skeleton-card tall"></div>
+            </div>
         </div>
     </main>
 
+    <!-- 설정 -->
+    <div class="modal-overlay" id="modal-settings">
+        <div class="modal-panel modal-lg">
+            <div class="modal-header"><h2>⚙ 설정</h2><button class="modal-close" data-close="modal-settings">&times;</button></div>
+            <div class="modal-body">
+                <input type="text" class="settings-search" id="settings-search" placeholder="설정 검색..." autocomplete="off">
+                <div class="settings-tabs">
+                    <button class="stab active" data-tab="tab-general">일반</button>
+                    <button class="stab" data-tab="tab-visual">외관</button>
+                    <button class="stab" data-tab="tab-widgets">위젯</button>
+                    <button class="stab" data-tab="tab-data">데이터</button>
+                    <button class="stab" data-tab="tab-stats">통계</button>
+                </div>
+
+                <div class="stab-content active" id="tab-general">
+                    <div class="setting-group">
+                        <label class="setting-label">세계 시계</label>
+                        <div id="clock-settings"></div>
+                        <button class="btn btn-ghost btn-sm" id="btn-add-clock">+ 시계 추가</button>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">검색엔진</label>
+                        <div id="engine-settings"></div>
+                        <button class="btn btn-ghost btn-sm" id="btn-add-engine">+ 검색엔진 추가</button>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">사용 통계</label>
+                        <div class="setting-row">
+                            <span class="setting-sub">자주/최근 사용 하이라이트</span>
+                            <label class="toggle"><input type="checkbox" id="chk-usage-tracking"><span class="toggle-slider"></span></label>
+                        </div>
+                        <div class="setting-row" style="margin-top:6px">
+                            <span class="setting-sub">자주 사용 섹션 표시</span>
+                            <label class="toggle"><input type="checkbox" id="chk-show-recommendations"><span class="toggle-slider"></span></label>
+                        </div>
+                        <div class="setting-row" style="margin-top:6px">
+                            <span class="setting-sub">사용량 순 자동 정렬</span>
+                            <label class="toggle"><input type="checkbox" id="chk-auto-sort"><span class="toggle-slider"></span></label>
+                        </div>
+                        <div class="setting-row" style="margin-top:6px">
+                            <span class="setting-sub">리스트 뷰 (북마크)</span>
+                            <label class="toggle"><input type="checkbox" id="chk-list-view"><span class="toggle-slider"></span></label>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">테마 모드</label>
+                        <div class="setting-row">
+                            <select id="theme-mode-select" class="setting-input" style="max-width:180px">
+                                <option value="manual">수동 (다크/라이트 버튼)</option>
+                                <option value="auto">OS 설정 따르기</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">액센트 컬러</label>
+                        <div class="accent-picker" id="accent-picker">
+                            <div class="accent-dot" data-accent="blue" style="background:#6ea8fe" title="블루"></div>
+                            <div class="accent-dot" data-accent="purple" style="background:#a78bfa" title="퍼플"></div>
+                            <div class="accent-dot" data-accent="rose" style="background:#fb7185" title="로즈"></div>
+                            <div class="accent-dot" data-accent="emerald" style="background:#34d399" title="에메랄드"></div>
+                            <div class="accent-dot" data-accent="amber" style="background:#fbbf24" title="앰버"></div>
+                            <div class="accent-dot" data-accent="cyan" style="background:#22d3ee" title="시안"></div>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">키보드 단축키</label>
+                        <button class="btn btn-secondary" id="btn-open-shortcuts">단축키 관리</button>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">날씨 (OpenWeatherMap)</label>
+                        <div class="setting-row"><input type="text" id="weather-key-input" placeholder="API Key (비워두면 비활성화)" class="setting-input"></div>
+                        <div class="setting-row" style="margin-top:8px">
+                            <input type="text" id="weather-city-input" placeholder="도시명 (예: Seoul)" class="setting-input" style="max-width:180px">
+                            <select id="weather-units-input" class="setting-input" style="max-width:110px"><option value="metric">°C (섭씨)</option><option value="imperial">°F (화씨)</option></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stab-content" id="tab-visual">
+                    <div class="setting-group">
+                        <label class="setting-label">배경 이미지</label>
+                        <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px" id="bg-desc">1장 = 고정 배경 / 2장 이상 = 슬라이드쇼 가능</p>
+                        <div class="setting-row">
+                            <input type="file" id="bg-upload" accept="image/*" multiple hidden>
+                            <button class="btn btn-secondary" id="btn-bg-upload">이미지 추가</button>
+                            <button class="btn btn-ghost" id="btn-bg-reset">전체 초기화</button>
+                            <span class="setting-sub" id="bg-count" style="margin-left:4px">0장</span>
+                        </div>
+                        <div id="bg-thumbs" class="slide-thumbs" style="margin-top:8px"></div>
+                        <div id="bg-slideshow-controls" style="display:none">
+                            <div class="setting-row" style="margin-top:10px">
+                                <span class="setting-sub">슬라이드쇼 자동 전환</span>
+                                <label class="toggle"><input type="checkbox" id="chk-slideshow-enabled"><span class="toggle-slider"></span></label>
+                            </div>
+                            <div id="bg-interval-row" class="setting-row" style="margin-top:8px">
+                                <span class="setting-sub">전환 간격</span>
+                                <select id="bg-interval-select" class="setting-input" style="max-width:140px">
+                                    <option value="1">1분</option>
+                                    <option value="5">5분</option>
+                                    <option value="10">10분</option>
+                                    <option value="30">30분</option>
+                                    <option value="60">1시간</option>
+                                    <option value="180">3시간</option>
+                                    <option value="360">6시간</option>
+                                    <option value="720">12시간</option>
+                                    <option value="1440">24시간</option>
+                                </select>
+                            </div>
+                            <div class="setting-row" style="margin-top:8px">
+                                <button class="btn btn-ghost btn-sm" id="btn-bg-prev" title="이전 배경">◀ 이전</button>
+                                <span class="setting-sub" id="bg-current-idx" style="margin:0 8px">1/1</span>
+                                <button class="btn btn-ghost btn-sm" id="btn-bg-next" title="다음 배경">다음 ▶</button>
+                            </div>
+                        </div>
+                        <div class="setting-row" style="margin-top:10px">
+                            <span class="setting-sub">오버레이 어둡기</span>
+                            <input type="range" id="bg-opacity" min="0" max="60" value="15" class="range-input">
+                        </div>
+                        <div class="setting-row" style="margin-top:8px">
+                            <span class="setting-sub">시간대별 색상 효과</span>
+                            <label class="toggle"><input type="checkbox" id="chk-time-overlay"><span class="toggle-slider"></span></label>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">글래스 효과</label>
+                        <div class="setting-row">
+                            <span class="setting-sub">블러 강도</span>
+                            <input type="range" id="blur-intensity" min="0" max="40" value="18" class="range-input">
+                        </div>
+                        <div class="setting-row" style="margin-top:8px">
+                            <span class="setting-sub">글래스 프리셋</span>
+                            <select id="glass-preset" class="setting-input" style="max-width:150px">
+                                <option value="clear">투명</option>
+                                <option value="normal">반투명 (기본)</option>
+                                <option value="frosted">불투명</option>
+                            </select>
+                        </div>
+                        <div class="setting-row" style="margin-top:8px">
+                            <span class="setting-sub">카드 투명도</span>
+                            <input type="range" id="card-opacity" min="0" max="100" value="50" class="range-input">
+                            <span id="card-opacity-val" style="font-size:.75rem;min-width:32px;text-align:right;color:var(--text-secondary)">50%</span>
+                        </div>
+                        <div class="setting-row" style="margin-top:8px">
+                            <span class="setting-sub">시계 바 투명도</span>
+                            <input type="range" id="clock-opacity" min="0" max="100" value="22" class="range-input">
+                            <span id="clock-opacity-val" style="font-size:.75rem;min-width:32px;text-align:right;color:var(--text-secondary)">22%</span>
+                        </div>
+                    </div>
+                    <!-- Slideshow merged into background section above -->
+                    <div class="setting-group">
+                        <label class="setting-label">사용자 정의 CSS</label>
+                        <textarea id="custom-css" class="code-textarea" placeholder="/* 여기에 CSS를 직접 입력하세요 */" rows="6"></textarea>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">성능</label>
+                        <div class="setting-row">
+                            <span class="setting-sub">애니메이션 줄이기</span>
+                            <label class="toggle"><input type="checkbox" id="chk-reduce-motion"><span class="toggle-slider"></span></label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stab-content" id="tab-widgets">
+                    <div class="setting-group">
+                        <label class="setting-label">D-Day 카운트다운</label>
+                        <div id="dday-settings"></div>
+                        <button class="btn btn-ghost btn-sm" id="btn-add-dday">+ D-Day 추가</button>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">페이지 관리</label>
+                        <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px">카테고리를 여러 페이지로 나누어 탭으로 전환합니다</p>
+                        <div id="page-settings"></div>
+                        <button class="btn btn-ghost btn-sm" id="btn-add-page">+ 페이지 추가</button>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">카드 크기</label>
+                        <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px">카테고리 카드를 2칸으로 확장합니다</p>
+                        <div id="card-size-settings"></div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">카드 색상</label>
+                        <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px">카테고리별 왼쪽 테두리 색상을 지정합니다</p>
+                        <div id="card-color-settings"></div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">달력</label>
+                        <div class="setting-row"><span class="setting-sub">월요일 시작</span><label class="toggle"><input type="checkbox" id="chk-cal-monday" checked><span class="toggle-slider"></span></label></div>
+                        <div class="setting-row" style="margin-top:6px"><span class="setting-sub">일정 알림 (10분 전)</span><label class="toggle"><input type="checkbox" id="chk-event-notif" checked><span class="toggle-slider"></span></label></div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">포모도로</label>
+                        <div class="setting-row"><span class="setting-sub">자동 세션 (25분→5분 반복)</span><label class="toggle"><input type="checkbox" id="chk-auto-pomo"><span class="toggle-slider"></span></label></div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">습관 트래커</label>
+                        <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:6px">한 줄에 하나씩 입력</p>
+                        <textarea id="habits-input" class="code-textarea" rows="4" placeholder="물 8잔&#10;30분 운동&#10;독서 20분"></textarea>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">레이아웃 프리셋</label>
+                        <select id="layout-preset" class="setting-input" style="max-width:180px">
+                            <option value="default">기본</option>
+                            <option value="compact">컴팩트</option>
+                            <option value="wide">와이드</option>
+                            <option value="magazine">매거진</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">검색 키워드 바로가기 (F3)</label>
+                        <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:6px">형식: 키워드=검색URL (예: yt=https://youtube.com/results?search_query=)</p>
+                        <textarea id="search-keywords" class="code-textarea" rows="5" placeholder="yt=https://www.youtube.com/results?search_query="></textarea>
+                    </div>
+                </div>
+
+                <div class="stab-content" id="tab-data">
+                    <div class="setting-group">
+                        <label class="setting-label">내보내기 / 가져오기</label>
+                        <div class="export-format-row">
+                            <select id="export-format" class="setting-input" style="max-width:130px">
+                                <option value="json">JSON (전체)</option>
+                                <option value="markdown">Markdown</option>
+                                <option value="html">HTML 보고서</option>
+                            </select>
+                            <button class="btn btn-secondary" id="btn-export">내보내기</button>
+                            <input type="file" id="import-file" accept=".json" hidden>
+                            <button class="btn btn-secondary" id="btn-import">가져오기</button>
+                        </div>
+                        <p style="font-size:.68rem;color:var(--text-muted);margin-top:6px">💡 JSON 파일을 대시보드에 드래그해도 가져올 수 있습니다</p>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">자동 백업</label>
+                        <div class="setting-row"><span class="setting-sub">백업 간격 (시간)</span><input type="number" id="backup-interval" min="1" max="168" value="24" class="setting-input" style="max-width:80px"></div>
+                        <p id="backup-status" style="font-size:.68rem;color:var(--text-muted);margin-top:6px"></p>
+                        <div id="backup-list-container" style="margin-top:10px">
+                            <button class="btn btn-ghost btn-sm" id="btn-show-backups">백업 목록 보기</button>
+                            <div id="backup-list" style="display:none;max-height:240px;overflow-y:auto;margin-top:8px"></div>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">북마크 정리</label>
+                        <button class="btn btn-secondary" id="btn-find-dupes" style="margin-bottom:6px">🔍 중복 URL 검사</button>
+                        <button class="btn btn-secondary" id="btn-reset-deadlinks" style="margin-bottom:6px">🔗 데드링크 초기화</button>
+                        <div id="dupe-results" style="display:none;max-height:200px;overflow-y:auto;font-size:.75rem;margin-top:6px"></div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">프로필</label>
+                        <div class="setting-row"><input type="text" id="profile-name-input" placeholder="새 프로필 이름" class="setting-input" style="max-width:180px"><button class="btn btn-secondary btn-sm" id="btn-profile-save">현재 상태를 프로필로 저장</button></div>
+                        <div id="profile-list" style="margin-top:10px"></div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">휴지통</label>
+                        <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px">삭제된 북마크가 30일간 보관됩니다</p>
+                        <div id="trash-list"></div>
+                        <button class="btn btn-ghost btn-sm" id="btn-empty-trash" style="margin-top:6px">휴지통 비우기</button>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">서버 관리</label>
+                        <div class="setting-row">
+                            <span class="setting-sub">포트 번호</span>
+                            <input type="number" id="server-port-input" min="1024" max="65535" class="setting-input" style="max-width:100px">
+                            <button class="btn btn-secondary btn-sm" id="btn-change-port">변경</button>
+                        </div>
+                        <p id="server-port-info" style="font-size:.68rem;color:var(--text-muted);margin-top:4px"></p>
+                        <div class="setting-row" style="margin-top:10px">
+                            <button class="btn btn-secondary" id="btn-restart-server">🔄 서버 재시작</button>
+                        </div>
+                        <p style="font-size:.68rem;color:var(--text-muted);margin-top:4px">포트 변경 후 서버를 재시작하면 새 포트로 접속됩니다</p>
+                    </div>
+                </div>
+
+                <div class="stab-content" id="tab-stats">
+                    <div class="setting-group">
+                        <label class="setting-label">🔥 할 일 완료 스트릭</label>
+                        <div id="stats-streak"></div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">사용 히트맵 (90일)</label>
+                        <div id="stats-heatmap"></div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">포모도로 통계</label>
+                        <div id="stats-pomo"></div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">가장 많이 클릭한 북마크 Top 10</label>
+                        <div id="stats-top10"></div>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">카테고리별 클릭 수</label>
+                        <div id="stats-categories"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-primary" id="btn-save-settings">설정 저장</button></div>
+        </div>
+    </div>
+
+    <!-- 북마크 편집 -->
+    <div class="modal-overlay" id="modal-bookmark">
+        <div class="modal-panel modal-sm">
+            <div class="modal-header"><h2 id="bm-modal-title">북마크 추가</h2><button class="modal-close" data-close="modal-bookmark">&times;</button></div>
+            <div class="modal-body">
+                <div class="field"><label>이름</label><input type="text" id="bm-name" placeholder="Google" autocomplete="off"></div>
+                <div class="field"><label>URL</label><input type="text" id="bm-url" placeholder="https://www.google.com" autocomplete="off"></div>
+                <div class="field"><label>카테고리</label><select id="bm-category"></select></div>
+                <div class="field">
+                    <label>아이콘</label>
+                    <div class="setting-row">
+                        <input type="text" id="bm-icon" placeholder="URL 또는 경로 (비워두면 자동)" autocomplete="off" style="flex:1">
+                        <input type="file" id="bm-icon-upload" accept="image/*" hidden>
+                        <button class="btn btn-secondary btn-sm" id="btn-bm-icon-upload">파일 선택</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="btn-bm-delete" style="display:none">삭제</button>
+                <div style="flex:1"></div>
+                <button class="btn btn-secondary" data-close="modal-bookmark">취소</button>
+                <button class="btn btn-primary" id="btn-bm-save">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 카테고리 추가 -->
+    <div class="modal-overlay" id="modal-category">
+        <div class="modal-panel modal-sm">
+            <div class="modal-header"><h2>새 카테고리</h2><button class="modal-close" data-close="modal-category">&times;</button></div>
+            <div class="modal-body">
+                <div class="field"><label>카테고리 이름</label><input type="text" id="cat-name" placeholder="새 카테고리" autocomplete="off"></div>
+                <div class="field"><label>위치</label><select id="cat-position"><option value="top">상단 섹션</option><option value="bottom">하단 섹션</option></select></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" data-close="modal-category">취소</button><button class="btn btn-primary" id="btn-cat-save">만들기</button></div>
+        </div>
+    </div>
+
+    <!-- 단축키 -->
+    <div class="modal-overlay" id="modal-shortcuts">
+        <div class="modal-panel">
+            <div class="modal-header"><h2>⌨ 키보드 단축키</h2><button class="modal-close" data-close="modal-shortcuts">&times;</button></div>
+            <div class="modal-body">
+                <div id="shortcuts-list"></div>
+                <button class="btn btn-ghost btn-sm" id="btn-add-shortcut" style="margin-top:8px">+ 단축키 추가</button>
+                <p style="margin-top:14px;font-size:.72rem;color:var(--text-muted)">사용 가능: <code>focusSearch</code> <code>toggleEdit</code> <code>openSettings</code> <code>showShortcuts</code> <code>toggleTheme</code> <code>exportData</code> <code>spotlightSearch</code></p>
+            </div>
+            <div class="modal-footer"><button class="btn btn-primary" id="btn-save-shortcuts">단축키 저장</button></div>
+        </div>
+    </div>
+
+    <!-- 할 일 전체보기 -->
+    <div class="modal-overlay" id="modal-todo-full">
+        <div class="modal-panel">
+            <div class="modal-header"><h2>📋 할 일 전체보기</h2><button class="modal-close" data-close="modal-todo-full">&times;</button></div>
+            <div class="modal-body" id="todo-full-list"></div>
+        </div>
+    </div>
+
+    <!-- 카테고리 이름 변경 -->
+    <div class="modal-overlay" id="modal-rename-cat">
+        <div class="modal-panel modal-sm">
+            <div class="modal-header"><h2>카테고리 이름 변경</h2><button class="modal-close" data-close="modal-rename-cat">&times;</button></div>
+            <div class="modal-body"><div class="field"><label>새 이름</label><input type="text" id="rename-cat-input" autocomplete="off"></div></div>
+            <div class="modal-footer"><button class="btn btn-secondary" data-close="modal-rename-cat">취소</button><button class="btn btn-primary" id="btn-rename-cat-save">변경</button></div>
+        </div>
+    </div>
+
+    <!-- 달력 일정 편집 -->
+    <div class="modal-overlay" id="modal-cal-event">
+        <div class="modal-panel modal-sm">
+            <div class="modal-header"><h2 id="cal-event-title">일정 추가</h2><button class="modal-close" data-close="modal-cal-event">&times;</button></div>
+            <div class="modal-body">
+                <div class="field"><label>일정 이름</label><input type="text" id="cal-event-name" placeholder="회의, 약속 등" autocomplete="off"></div>
+                <div class="field"><label>날짜</label><input type="date" id="cal-event-date"></div>
+                <div class="field field-row"><div class="field-half"><label>시작 시간</label><input type="time" id="cal-event-start-time"></div><div class="field-half"><label>종료 시간</label><input type="time" id="cal-event-end-time"></div></div>
+                <div class="field"><label>반복</label><select id="cal-event-recurring" class="setting-input"><option value="">반복 없음</option><option value="매주">매주</option><option value="격주">격주</option><option value="매월">매월</option></select></div>
+                <div class="field"><label>색상</label>
+                    <div class="color-picker-row" id="cal-event-colors">
+                        <span class="color-dot active" data-color="#6ea8fe" style="background:#6ea8fe"></span>
+                        <span class="color-dot" data-color="#ef4444" style="background:#ef4444"></span>
+                        <span class="color-dot" data-color="#f59e0b" style="background:#f59e0b"></span>
+                        <span class="color-dot" data-color="#22c55e" style="background:#22c55e"></span>
+                        <span class="color-dot" data-color="#a78bfa" style="background:#a78bfa"></span>
+                        <span class="color-dot" data-color="#f472b6" style="background:#f472b6"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="btn-cal-event-delete" style="display:none">삭제</button>
+                <div style="flex:1"></div>
+                <button class="btn btn-secondary" data-close="modal-cal-event">취소</button>
+                <button class="btn btn-primary" id="btn-cal-event-save">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 우클릭 컨텍스트 메뉴 -->
+    <div class="ctx-menu" id="ctx-menu">
+        <div class="ctx-item" data-ctx="pin" id="ctx-pin">📌 상단 고정</div>
+        <div class="ctx-item" data-ctx="edit">✎ 편집</div>
+        <div class="ctx-item" data-ctx="open-new">↗ 새 탭에서 열기</div>
+        <div class="ctx-item" data-ctx="open-all-cat">📂 카테고리 전체 열기</div>
+        <div class="ctx-item" data-ctx="move-to-page">📄 다른 페이지로 이동</div>
+        <div class="ctx-sep"></div>
+        <div class="ctx-item danger" data-ctx="delete">× 삭제</div>
+    </div>
+
     <script src="script.js"></script>
 </body>
-
 </html>

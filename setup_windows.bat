@@ -1,43 +1,172 @@
 @echo off
-set "SCRIPT_PATH=%~dp0run_server_background.vbs"
+setlocal enabledelayedexpansion
+
+set "SCRIPT_DIR=%~dp0"
+set "LOCAL_NODE=%SCRIPT_DIR%node\node.exe"
+set "DATA_DIR=%SCRIPT_DIR%data"
+set "VBS_PATH=%SCRIPT_DIR%start_hidden.vbs"
 set "STARTUP_FOLDER=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+set "SHORTCUT=%STARTUP_FOLDER%\Dashboard_StartPage.lnk"
 
-echo Setting up JH Kim's Office for Windows...
-echo Core files: index.html, style.css, script.js, server.js
+echo ============================================
+echo   Dashboard Starting Page - Windows Setup
+echo ============================================
 echo.
 
-:: Check for Node.js
-node -v >nul 2>&1
-if %errorlevel% neq 0 (
-    echo Error: Node.js is not installed or not in your PATH.
-    echo Please install Node.js from https://nodejs.org
-    pause
-    exit /b
-)
+:: ==========================================
+:: Step 1: Protect existing data
+:: ==========================================
+if not exist "%DATA_DIR%\bookmarks.json" goto :fresh_install
 
-if not exist "%SCRIPT_PATH%" (
-    echo Error: run_server_background.vbs not found in this folder.
-    pause
-    exit /b
-)
-
-echo Creating/Updating startup shortcut...
-:: This PowerShell command creates or overwrites the existing shortcut with current paths
-powershell "$s=(New-Object -COM WScript.Shell).CreateShortcut('%STARTUP_FOLDER%\JH_Kim_Office.lnk');$s.TargetPath='%SCRIPT_PATH%';$s.WorkingDirectory='%~dp0';$s.Save()"
-
-echo Starting the server...
-:: Check if port 1111 is already in use
-netstat -ano | findstr :1111 | findstr LISTENING >nul
-if %errorlevel% equ 0 (
-    echo [INFO] Port 1111 is already in use. Server might already be running.
+echo [DATA] Existing data found - will be preserved.
+echo [DATA] Creating safety backup before setup...
+mkdir "%DATA_DIR%\backups" >nul 2>&1
+if exist "%LOCAL_NODE%" (
+    "%LOCAL_NODE%" -e "const fs=require('fs'),p=require('path'),D=p.join(__dirname,'data');try{const d={};['bookmarks','notes','config','todos','ddays','usage','trash','events'].forEach(f=>{try{d[f]=JSON.parse(fs.readFileSync(p.join(D,f+'.json'),'utf8'))}catch{}});d._backup_version='safety';d._backup_date=new Date().toISOString();fs.writeFileSync(p.join(D,'backups','safety-before-setup.json'),JSON.stringify(d,null,2))}catch{}" >nul 2>&1
 ) else (
-    echo [INFO] Starting server in the background via VBS...
-    wscript.exe "%SCRIPT_PATH%"
+    node -e "const fs=require('fs'),p=require('path'),D=p.join(__dirname,'data');try{const d={};['bookmarks','notes','config','todos','ddays','usage','trash','events'].forEach(f=>{try{d[f]=JSON.parse(fs.readFileSync(p.join(D,f+'.json'),'utf8'))}catch{}});d._backup_version='safety';d._backup_date=new Date().toISOString();fs.writeFileSync(p.join(D,'backups','safety-before-setup.json'),JSON.stringify(d,null,2))}catch{}" >nul 2>&1
+)
+if exist "%DATA_DIR%\backups\safety-before-setup.json" (
+    echo [OK] Safety backup created
+) else (
+    echo [INFO] Backup skipped - data files will still be preserved
+)
+goto :step2
+
+:fresh_install
+echo [INFO] Fresh install - no existing data
+mkdir "%DATA_DIR%" >nul 2>&1
+mkdir "%DATA_DIR%\backups" >nul 2>&1
+mkdir "%DATA_DIR%\icons" >nul 2>&1
+mkdir "%DATA_DIR%\profiles" >nul 2>&1
+mkdir "%SCRIPT_DIR%assets" >nul 2>&1
+
+:step2
+echo.
+
+:: ==========================================
+:: Step 2: Ensure Node.js is available
+:: ==========================================
+:: Check portable node first
+if exist "%LOCAL_NODE%" (
+    echo [OK] Portable Node.js found
+    set "NODE_CMD=%LOCAL_NODE%"
+    goto :node_ready
 )
 
+:: Check system node
+where node >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [OK] System Node.js found
+    for /f "tokens=*" %%v in ('node -v 2^>nul') do echo      Version: %%v
+    set "NODE_CMD=node"
+    goto :node_ready
+)
+
+:: Neither found - download portable
+echo [SETUP] No Node.js found. Downloading portable version...
+echo         (This only needs to happen once, about 30MB)
 echo.
-echo Success! The server is now running and configured to start automatically.
+mkdir "%SCRIPT_DIR%node" >nul 2>&1
+powershell -Command "$ProgressPreference='SilentlyContinue'; $url='https://nodejs.org/dist/v22.19.0/node-v22.19.0-win-x64.zip'; $zip='%SCRIPT_DIR%node\_node.zip'; Write-Host '[SETUP] Downloading...'; Invoke-WebRequest -Uri $url -OutFile $zip; Write-Host '[SETUP] Extracting...'; Expand-Archive -Path $zip -DestinationPath '%SCRIPT_DIR%node\_tmp' -Force; Get-ChildItem '%SCRIPT_DIR%node\_tmp\node-*' | ForEach-Object { Copy-Item (Join-Path $_.FullName 'node.exe') '%SCRIPT_DIR%node\node.exe' -Force }; Remove-Item '%SCRIPT_DIR%node\_tmp' -Recurse -Force; Remove-Item $zip -Force"
+
+if exist "%LOCAL_NODE%" (
+    echo [OK] Portable Node.js installed
+    set "NODE_CMD=%LOCAL_NODE%"
+    goto :node_ready
+)
+
+echo [ERROR] Download failed. Please check your internet connection.
+echo         Or install Node.js manually from https://nodejs.org
+pause
+exit /b 1
+
+:node_ready
 echo.
-echo You can access it at http://localhost:1111
+
+:: ==========================================
+:: Step 3: Stop existing dashboard server
+:: ==========================================
+:: Read configured port
+set "DASH_PORT=1111"
+if exist "%SCRIPT_DIR%port.conf" (
+    set /p DASH_PORT=<"%SCRIPT_DIR%port.conf"
+)
+
+:: 3a: PID-based stop
+if exist "%SCRIPT_DIR%.server.pid" (
+    for /f "tokens=*" %%a in ('powershell -Command "try{(Get-Content '%SCRIPT_DIR%.server.pid' | ConvertFrom-Json).pid}catch{}" 2^>nul') do (
+        set "OLD_PID=%%a"
+    )
+    if defined OLD_PID (
+        powershell -Command "try{$p=Get-Process -Id !OLD_PID! -ErrorAction Stop;if($p.ProcessName -match 'node'){Stop-Process -Id !OLD_PID! -Force;Write-Host '[CLEANUP] Stopped old server (PID: !OLD_PID!)'}}catch{}"
+    )
+    del "%SCRIPT_DIR%.server.pid" >nul 2>&1
+)
+
+:: 3b: API-based stop (catches servers without PID file)
+powershell -Command "try{Invoke-WebRequest -Uri 'http://127.0.0.1:!DASH_PORT!/api/shutdown' -Method POST -TimeoutSec 2 -ErrorAction Stop|Out-Null;Write-Host '[CLEANUP] Sent stop signal to port !DASH_PORT!'}catch{}" 2>nul
+timeout /t 2 /nobreak >nul
+
+:: ==========================================
+:: Step 4: Register auto-start
+:: ==========================================
+:: Clean up old methods
+if exist "%SHORTCUT%" del "%SHORTCUT%" >nul 2>&1
+schtasks /delete /tn "DashboardStartPage" /f >nul 2>&1
+
+echo [SETUP] Registering auto-start...
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "DashboardStartPage" /t REG_SZ /d "wscript.exe \"%VBS_PATH%\"" /f >nul 2>&1
+if not errorlevel 1 (
+    echo [OK] Auto-start registered via Registry
+) else (
+    echo [WARN] Registry failed, using Startup shortcut...
+    powershell -Command "$s=(New-Object -COM WScript.Shell).CreateShortcut('%SHORTCUT%');$s.TargetPath='wscript.exe';$s.Arguments='\"'+\"%VBS_PATH%\"+'\"';$s.WorkingDirectory='%SCRIPT_DIR%';$s.WindowStyle=7;$s.Save()"
+    echo [OK] Auto-start registered via Startup shortcut
+)
+
+:: ==========================================
+:: Step 5: Start server
+:: ==========================================
+echo.
+echo [SETUP] Starting server...
+cd /d "%SCRIPT_DIR%"
+powershell -WindowStyle Hidden -Command "Start-Process '!NODE_CMD!' -ArgumentList 'server.js' -WorkingDirectory '%SCRIPT_DIR%' -WindowStyle Hidden"
+
+:: Wait for PID file
+timeout /t 3 /nobreak >nul
+set "ACTIVE_PORT="
+if exist ".server.pid" (
+    for /f "tokens=*" %%a in ('powershell -Command "try{(Get-Content '.server.pid' | ConvertFrom-Json).port}catch{}" 2^>nul') do (
+        set "ACTIVE_PORT=%%a"
+    )
+)
+
+:: ==========================================
+:: Done
+:: ==========================================
+echo.
+echo ============================================
+echo   Setup Complete!
+echo ============================================
+echo.
+if defined ACTIVE_PORT (
+    echo   URL:        http://localhost:!ACTIVE_PORT!
+) else (
+    echo   URL:        http://localhost:!DASH_PORT!
+)
+echo   Auto-start: On login (no popup, no admin needed)
+if "!NODE_CMD!"=="node" (
+    echo   Node.js:    SYSTEM (using installed Node.js)
+) else (
+    echo   Node.js:    PORTABLE (fully independent)
+)
+echo.
+echo   Your data is safe in the data\ folder.
+echo   Re-running this setup will NEVER delete your data.
+echo.
+echo   To uninstall: run uninstall.bat
+echo   To restart:   run restart.bat
+echo   To change port: run set-port.bat
 echo.
 pause

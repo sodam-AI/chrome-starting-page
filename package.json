@@ -1,0 +1,30 @@
+{
+  "name": "chrome-starting-page",
+  "version": "7.3.0",
+  "description": "A beautiful, private Chrome start page dashboard that runs locally on your computer. Zero dependencies, no coding required.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "chrome",
+    "startpage",
+    "dashboard",
+    "homepage",
+    "bookmarks",
+    "new-tab",
+    "local",
+    "privacy",
+    "no-dependencies",
+    "nodejs"
+  ],
+  "author": "Sodam AI Studio",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/chrome-starting-page"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

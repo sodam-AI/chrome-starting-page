@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# setup_mac.sh - Dynamic setup for JH Kim's Office (macOS)
+# setup_mac.sh - Dynamic setup for Dashboard (macOS)
 # This script automatically detects paths and configures the LaunchAgent.
 
 PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PLIST_NAME="com.jhkim.office.plist"
+PLIST_NAME="com.dashboard.startpage.plist"
 PLIST_DEST="$HOME/Library/LaunchAgents/$PLIST_NAME"
 NODE_PATH=$(which node)
 
@@ -13,7 +13,7 @@ if [ -z "$NODE_PATH" ]; then
     exit 1
 fi
 
-echo "Setting up JH Kim's Office on macOS..."
+echo "Setting up Dashboard on macOS..."
 echo "Project Directory: $PROJECT_DIR"
 echo "Node Binary: $NODE_PATH"
 
@@ -24,7 +24,7 @@ cat <<EOF > "$PLIST_NAME"
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.jhkim.office</string>
+    <string>com.dashboard.startpage</string>
     <key>ProgramArguments</key>
     <array>
         <string>$NODE_PATH</string>
@@ -55,4 +55,11 @@ launchctl unload "$PLIST_DEST" 2>/dev/null
 launchctl load "$PLIST_DEST"
 
 echo "Success! The server is now running in the background."
-echo "You can access your dashboard at http://localhost:1111"
+echo "Dashboard is running on the configured port (default: 1111)."
+sleep 2
+if [ -f "$PROJECT_DIR/.server.pid" ]; then
+    PORT=$(python3 -c "import json;print(json.load(open('$PROJECT_DIR/.server.pid'))['port'])" 2>/dev/null || echo "1111")
+    echo "Running at http://localhost:$PORT"
+else
+    echo "Default: http://localhost:1111"
+fi
